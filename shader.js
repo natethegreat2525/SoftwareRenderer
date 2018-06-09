@@ -66,6 +66,21 @@ function setPixelAlphaBlend(data, x, y, r, g, b, a) {
 	}
 }
 
+function perspectiveCorrectTriangleVarying(t) {
+	let v1 = t.p1.varyingArray;
+	let v2 = t.p2.varyingArray;
+	let v3 = t.p3.varyingArray;
+	
+	for (let i = 0; i < v1.length; i++) {
+		v1[i] /= t.p1.point.w;
+		v2[i] /= t.p2.point.w;
+		v3[i] /= t.p3.point.w;
+	}
+	v1.push(1/t.p1.point.w);
+	v2.push(1/t.p2.point.w);
+	v3.push(1/t.p3.point.w);
+}
+
 function calculateVaryingSlope(t) {
 	let v1 = t.p1.varyingArray;
 	let v2 = t.p2.varyingArray;
@@ -88,6 +103,7 @@ function calculateVaryingSlope(t) {
 		let r1 = v1[i];
 		let r2 = v2[i];
 		let r3 = v3[i];
+		
 		let dx = (h12 * (r3 - r1) + h13 * (r1 - r2)) / quot;
 		let dy = (w12 * (r3 - r1) + w13 * (r1 - r2)) / -quot;
 		
@@ -144,6 +160,7 @@ function drawTriangle(buffer, triangle, fragmentShader, uniforms) {
 		return;
 	}
 	
+	perspectiveCorrectTriangleVarying(triangle);
 	let varyingSlopes = calculateVaryingSlope(triangle);
 	if (!varyingSlopes) {
 		return;
@@ -220,5 +237,9 @@ function incrementVarying(varying, slopes, dxm, dym) {
 	for (let i = 0; i < varying.length; i++) {
 		varying[i] += slopes[i].dx * dxm + slopes[i].dy * dym;
 	}
+}
+
+export function getVarying(base, idx) {
+	return base[idx] / base[base.length - 1];
 }
 

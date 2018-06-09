@@ -1,5 +1,5 @@
 import { Point3, Point4, Mat4 } from "./math.js";
-import { drawTriangles, Buffer, Triangle, Vertex, Fragment } from "./shader.js";
+import { drawTriangles, Buffer, Triangle, Vertex, Fragment, getVarying } from "./shader.js";
 
 let canvas = document.getElementById('canvas');
 let ctx = canvas.getContext('2d');
@@ -13,12 +13,12 @@ let perspective = Mat4.perspective(width, height, .1, 1000, Math.PI / 2);
 setInterval(mainLoop, 1000/60.0)
 
 let fragShader = (varyings, uniforms) => {
-	let u = varyings[4];
-	let v = varyings[5];
+	let u = getVarying(varyings, 4);
+	let v = getVarying(varyings, 5);
 	if ((Math.floor(u * 10) + Math.floor(v * 10)) % 2 == 0) {
-		return new Fragment(varyings[0], varyings[1], varyings[2], 0);
+		return new Fragment(getVarying(varyings, 0), getVarying(varyings, 1), getVarying(varyings, 2), 0);
 	}
-	return new Fragment(varyings[0], varyings[1], varyings[2], varyings[3]);
+	return new Fragment(getVarying(varyings, 0), getVarying(varyings, 1), getVarying(varyings, 2), getVarying(varyings, 3));
 }
 
 let vertexShader = (vertex, uniforms) => {

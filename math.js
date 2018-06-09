@@ -58,7 +58,6 @@ export class Point4 {
 		this.x = this.x / this.w;
 		this.y = this.y / this.w;
 		this.z = this.z / this.w;
-		this.w = 1;
 	}
 }
 
