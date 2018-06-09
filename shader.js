@@ -33,6 +33,7 @@ export class Buffer {
 	
 	clear() {
 		this.imageData.data.fill(0);
+		this.depth.fill(0);
 	}
 }
 
@@ -47,22 +48,19 @@ export function drawTriangles(buffer, triangles, vertexShader, fragmentShader, u
 	}
 }
 
-function setPixelAlphaBlend(data, x, y, r, g, b, a) {
-	if (x >= 0 && y >= 0 && x < data.width && y < data.height) {
-		let idx = (x + y * data.width) * 4;
-		if (a >= 255) {
-			data.data[idx] = r;
-			data.data[idx + 1] = g;
-			data.data[idx + 2] = b;
-			data.data[idx + 3] = a;
-		} else {
-			let af = a / 255.0
-			let oma = 1-af;
-			data.data[idx] = data.data[idx] * oma + r * af;
-			data.data[idx + 1] = data.data[idx + 1] * oma + g * af;
-			data.data[idx + 2] = data.data[idx + 2] * oma + b * af;
-			data.data[idx + 3] = data.data[idx + 3] + af * (255 - data.data[idx + 3]);
-		}
+function setPixelAlphaBlend(data, idx, r, g, b, a) {
+	if (a >= 255) {
+		data.data[idx] = r;
+		data.data[idx + 1] = g;
+		data.data[idx + 2] = b;
+		data.data[idx + 3] = a;
+	} else {
+		let af = a / 255.0
+		let oma = 1-af;
+		data.data[idx] = data.data[idx] * oma + r * af;
+		data.data[idx + 1] = data.data[idx + 1] * oma + g * af;
+		data.data[idx + 2] = data.data[idx + 2] * oma + b * af;
+		data.data[idx + 3] = data.data[idx + 3] + af * (255 - data.data[idx + 3]);
 	}
 }
 
@@ -211,8 +209,21 @@ function doHalfTri(buffer, scanStart, scanEnd, p1, slope1, p2, slope2, baseVerte
 
 		let varyingBase = calculateVaryingBase(baseVertex, varyingSlopes, low, i);
 		for (let j = low; j < high; j++) {
-			let frag = fragmentShader(varyingBase, uniforms);
-			setPixelAlphaBlend(buffer.imageData, j, i, frag.r, frag.g, frag.b, frag.a);
+			if (j >= 0 && i >= 0 && j < buffer.imageData.width && i < buffer.imageData.height) {
+				let frag = fragmentShader(varyingBase, uniforms);
+				//discard alpha of 0
+				if (frag.a !== 0) {
+					let idx = j + i * buffer.imageData.width;
+					let depth = varyingBase[varyingBase.length - 1];
+					//depth buffer
+					if (depth < 0) {
+						if (depth <= buffer.depth[idx]) {
+							buffer.depth[idx] = depth;
+							setPixelAlphaBlend(buffer.imageData, idx * 4, frag.r, frag.g, frag.b, frag.a);
+						}
+					}
+				}
+			}
 			incrementVaryingX(varyingBase, varyingSlopes);
 		}
 		sx1 += slope1;
