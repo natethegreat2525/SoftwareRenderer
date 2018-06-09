@@ -102,8 +102,13 @@ function drawTriangle(buffer, triangle, fragmentShader, uniforms) {
 	let p2 = triangle.p2.point;
 	let p3 = triangle.p3.point;
 	
+	//normalize w value of p1, p2, p3
+	p1.normalizeW();
+	p2.normalizeW();
+	p3.normalizeW();
+	
 	//sort from top to bottom maintaining ccw or cw order
-	if (p2.y < p1.y && p2.y < p3.y) {
+	if (p2.y < p1.y && p2.y <= p3.y) {
 		let tmp = p1;
 		p1 = p2;
 		p2 = p3;
@@ -115,8 +120,7 @@ function drawTriangle(buffer, triangle, fragmentShader, uniforms) {
 		p3 = p2;
 		p2 = tmp;
 	}
-	
-	
+
 	//lets rescale the -1 to 1 point x and y coordinates to be buffer coordinates 0 - width and 0 - height
 	let xScale = buffer.imageData.width / 2;
 	let yScale = buffer.imageData.height / 2;
@@ -144,10 +148,11 @@ function drawTriangle(buffer, triangle, fragmentShader, uniforms) {
 	if (!varyingSlopes) {
 		return;
 	}
-	
+
 	//scan top half
 	let yScanStart = Math.ceil(p1.y);
 	let yScanEnd = Math.ceil(Math.min(p2.y, p3.y));
+
 	if (yScanEnd !== yScanStart) {
 		let vec1 = p2.sub(p1);
 		let vec2 = p3.sub(p1);
@@ -186,7 +191,7 @@ function doHalfTri(buffer, scanStart, scanEnd, p1, slope1, p2, slope2, baseVerte
 	for (let i = scanStart; i < scanEnd; i++) {
 		let low = Math.ceil(sx2);
 		let high = Math.ceil(sx1);
-		
+
 		let varyingBase = calculateVaryingBase(baseVertex, varyingSlopes, low, i);
 		for (let j = low; j < high; j++) {
 			let frag = fragmentShader(varyingBase, uniforms);

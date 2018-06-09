@@ -28,10 +28,10 @@ export class Point3 {
 
 export class Point4 {
 	constructor(x, y, z, w) {
-		this.x = x | 0;
-		this.y = y | 0;
-		this.z = z | 0;
-		this.w = w | 0;
+		this.x = x || 0;
+		this.y = y || 0;
+		this.z = z || 0;
+		this.w = w || 0;
 	}
 	
 	static fromPoint3(p3, w) {
@@ -52,6 +52,13 @@ export class Point4 {
 	
 	clone() {
 		return new Point4(this.x, this.y, this.z, this.w);
+	}
+	
+	normalizeW() {
+		this.x = this.x / this.w;
+		this.y = this.y / this.w;
+		this.z = this.z / this.w;
+		this.w = 1;
 	}
 }
 
@@ -126,6 +133,36 @@ export class Mat4 {
 		m.vals[5] = y;
 		m.vals[10] = z;
 		m.vals[15] = 1;
+		return m;
+	}
+	
+	static rotateX(r) {
+		let m = new Mat4();
+		m.vals[0] = 1;
+		m.vals[15] = 1;
+		
+		m.vals[5] = Math.sin(r);
+		m.vals[6] = Math.cos(r);
+		m.vals[9] = Math.cos(r);
+		m.vals[10] = -Math.sin(r);
+		return m;
+	}
+	
+	static perspective(w, h, near, far, fov) {
+		let r = Math.tan(fov / 2) * near;
+		let t = r * h / w;
+		let v00 = near / r;
+		let v11 = near / t;
+		let v22 = (far + near) / (near - far);
+		let v23 = 2 * far * near / (near - far);
+		let v32 = -1;
+		
+		let m = new Mat4();
+		m.vals[0] = v00;
+		m.vals[5] = v11;
+		m.vals[10] = v22;
+		m.vals[11] = v23;
+		m.vals[14] = v32;
 		return m;
 	}
 }
