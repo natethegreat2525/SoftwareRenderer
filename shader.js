@@ -1,7 +1,9 @@
 export class Vertex {
-	constructor(point, varyingArray) {
+	//Vertex after going through vertex shader
+	constructor(point, attributes, varyingArray) {
 		this.point = point;
-		this.varyingArray = varyingArray;
+		this.varyingArray = varyingArray || [];
+		this.attributes = attributes;
 	}
 }
 
@@ -23,15 +25,26 @@ export class Fragment {
 }
 
 export class Buffer {
-	constructor(w, h) {
-		this.imageData = new ImageData(w, h);
+	constructor(ctx, w, h) {
+		this.imageData = ctx.createImageData(w, h);
 		this.depth = new Array(w*h);
 		this.depth.fill(0);
 	}
+	
+	clear() {
+		this.imageData.data.fill(0);
+	}
 }
 
-export function drawTriangles(buffer, triangles, vertexShader, fragmentShader) {
-	
+export function drawTriangles(buffer, triangles, vertexShader, fragmentShader, uniforms) {
+	for (let i = 0; i < triangles.length; i++) {
+		let t = triangles[i];
+		let tNext = new Triangle();
+		tNext.p1 = vertexShader(t.p1, uniforms);
+		tNext.p2 = vertexShader(t.p2, uniforms);
+		tNext.p3 = vertexShader(t.p3, uniforms);
+		drawTriangle(buffer, tNext, fragmentShader, uniforms);
+	}
 }
 
 function setPixelAlphaBlend(data, x, y, r, g, b, a) {
@@ -49,7 +62,6 @@ function setPixelAlphaBlend(data, x, y, r, g, b, a) {
 			data.data[idx + 1] = data.data[idx + 1] * oma + g * af;
 			data.data[idx + 2] = data.data[idx + 2] * oma + b * af;
 			data.data[idx + 3] = data.data[idx + 3] + af * (255 - data.data[idx + 3]);
-
 		}
 	}
 }
@@ -85,7 +97,7 @@ function calculateVaryingSlope(t) {
 	return slopeArray;
 }
 
-export function drawTriangle(buffer, triangle, fragmentShader) {
+function drawTriangle(buffer, triangle, fragmentShader, uniforms) {
 	let p1 = triangle.p1.point;
 	let p2 = triangle.p2.point;
 	let p3 = triangle.p3.point;
@@ -103,6 +115,20 @@ export function drawTriangle(buffer, triangle, fragmentShader) {
 		p3 = p2;
 		p2 = tmp;
 	}
+	
+	
+	//lets rescale the -1 to 1 point x and y coordinates to be buffer coordinates 0 - width and 0 - height
+	let xScale = buffer.imageData.width / 2;
+	let yScale = buffer.imageData.height / 2;
+	
+	p1.x = (p1.x + 1) * xScale;
+	p1.y = (p1.y + 1) * yScale;
+	
+	p2.x = (p2.x + 1) * xScale;
+	p2.y = (p2.y + 1) * yScale;
+	
+	p3.x = (p3.x + 1) * xScale;
+	p3.y = (p3.y + 1) * yScale;
 	
 	let vL = p2.sub(p1);
 	let vR = p3.sub(p1);
@@ -125,7 +151,7 @@ export function drawTriangle(buffer, triangle, fragmentShader) {
 	if (yScanEnd !== yScanStart) {
 		let vec1 = p2.sub(p1);
 		let vec2 = p3.sub(p1);
-		doHalfTri(buffer, yScanStart, yScanEnd, p1.clone(), vec1.x/vec1.y, p1.clone(), vec2.x/vec2.y, triangle.p1, varyingSlopes, fragmentShader);
+		doHalfTri(buffer, yScanStart, yScanEnd, p1.clone(), vec1.x/vec1.y, p1.clone(), vec2.x/vec2.y, triangle.p1, varyingSlopes, fragmentShader, uniforms);
 	}
 	
 	//scan bottom half
@@ -145,11 +171,11 @@ export function drawTriangle(buffer, triangle, fragmentShader) {
 		start2 = p1;
 	}
 	if (yScanStart !== yScanEnd) {
-		doHalfTri(buffer, yScanStart, yScanEnd, start1.clone(), vec1.x/vec1.y, start2.clone(), vec2.x/vec2.y, triangle.p1, varyingSlopes, fragmentShader);
+		doHalfTri(buffer, yScanStart, yScanEnd, start1.clone(), vec1.x/vec1.y, start2.clone(), vec2.x/vec2.y, triangle.p1, varyingSlopes, fragmentShader, uniforms);
 	}
 }
 
-function doHalfTri(buffer, scanStart, scanEnd, p1, slope1, p2, slope2, baseVertex, varyingSlopes, fragmentShader) {
+function doHalfTri(buffer, scanStart, scanEnd, p1, slope1, p2, slope2, baseVertex, varyingSlopes, fragmentShader, uniforms) {
 	//start right x pos
 	let sx1 = p1.x + (scanStart - p1.y) * slope1;
 	
@@ -163,7 +189,7 @@ function doHalfTri(buffer, scanStart, scanEnd, p1, slope1, p2, slope2, baseVerte
 		
 		let varyingBase = calculateVaryingBase(baseVertex, varyingSlopes, low, i);
 		for (let j = low; j < high; j++) {
-			let frag = fragmentShader(varyingBase);
+			let frag = fragmentShader(varyingBase, uniforms);
 			setPixelAlphaBlend(buffer.imageData, j, i, frag.r, frag.g, frag.b, frag.a);
 			incrementVaryingX(varyingBase, varyingSlopes);
 		}
