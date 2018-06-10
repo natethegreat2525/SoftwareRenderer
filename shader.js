@@ -28,12 +28,12 @@ export class Buffer {
 	constructor(ctx, w, h) {
 		this.imageData = ctx.createImageData(w, h);
 		this.depth = new Array(w*h);
-		this.depth.fill(0);
+		this.depth.fill(1);
 	}
 	
 	clear() {
 		this.imageData.data.fill(0);
-		this.depth.fill(0);
+		this.depth.fill(1);
 	}
 }
 
@@ -44,6 +44,12 @@ export function drawTriangles(buffer, triangles, vertexShader, fragmentShader, u
 		tNext.p1 = vertexShader(t.p1, uniforms);
 		tNext.p2 = vertexShader(t.p2, uniforms);
 		tNext.p3 = vertexShader(t.p3, uniforms);
+		if (tNext.p1.z < -1 && tNext.p2.z < -1 && tNext.p3.z < -1) {
+			continue;
+		}
+		if (tNext.p1.z > 1 && tNext.p2.z > 1 && tNext.p3.z > 1) {
+			continue;
+		}
 		drawTriangle(buffer, tNext, fragmentShader, uniforms);
 	}
 }
@@ -68,12 +74,17 @@ function perspectiveCorrectTriangleVarying(t) {
 	let v1 = t.p1.varyingArray;
 	let v2 = t.p2.varyingArray;
 	let v3 = t.p3.varyingArray;
+		
+	v1.push(t.p1.point.z);
+	v2.push(t.p2.point.z);
+	v3.push(t.p3.point.z);
 	
 	for (let i = 0; i < v1.length; i++) {
 		v1[i] /= t.p1.point.w;
 		v2[i] /= t.p2.point.w;
 		v3[i] /= t.p3.point.w;
 	}
+	
 	v1.push(1/t.p1.point.w);
 	v2.push(1/t.p2.point.w);
 	v3.push(1/t.p3.point.w);
@@ -196,6 +207,15 @@ function drawTriangle(buffer, triangle, fragmentShader, uniforms) {
 }
 
 function doHalfTri(buffer, scanStart, scanEnd, p1, slope1, p2, slope2, baseVertex, varyingSlopes, fragmentShader, uniforms) {
+	
+	if (scanStart > scanEnd) {
+			return;
+	}
+	
+	if (scanStart < 0) {
+		scanStart = 0;
+	}
+	
 	//start right x pos
 	let sx1 = p1.x + (scanStart - p1.y) * slope1;
 	
@@ -204,19 +224,36 @@ function doHalfTri(buffer, scanStart, scanEnd, p1, slope1, p2, slope2, baseVerte
 	
 	//draw scan lines
 	for (let i = scanStart; i < scanEnd; i++) {
+		if (i > buffer.imageData.height) {
+			break;
+		}
+		
 		let low = Math.ceil(sx2);
 		let high = Math.ceil(sx1);
+		if (low >= buffer.imageData.width || high < 0 || low > high) {
+			sx1 += slope1;
+			sx2 += slope2;
+			continue;
+		}
+		if (low < 0) {
+			low = 0;
+		}
+		if (high >= buffer.imageData.width) {
+			high = buffer.imageData.width - 1;
+		}
 
 		let varyingBase = calculateVaryingBase(baseVertex, varyingSlopes, low, i);
+		let depthLow = getDepth(varyingBase);
+
 		for (let j = low; j < high; j++) {
 			if (j >= 0 && i >= 0 && j < buffer.imageData.width && i < buffer.imageData.height) {
 				let frag = fragmentShader(varyingBase, uniforms);
 				//discard alpha of 0
 				if (frag.a !== 0) {
 					let idx = j + i * buffer.imageData.width;
-					let depth = varyingBase[varyingBase.length - 1];
+					let depth = getDepth(varyingBase);
 					//depth buffer
-					if (depth < 0) {
+					if (depth > -1 && depth < 1) {
 						if (depth <= buffer.depth[idx]) {
 							buffer.depth[idx] = depth;
 							setPixelAlphaBlend(buffer.imageData, idx * 4, frag.r, frag.g, frag.b, frag.a);
@@ -254,3 +291,6 @@ export function getVarying(base, idx) {
 	return base[idx] / base[base.length - 1];
 }
 
+export function getDepth(base) {
+	return base[base.length - 2] / base[base.length - 1];
+}

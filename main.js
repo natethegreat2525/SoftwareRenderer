@@ -8,7 +8,7 @@ let height = canvas.height;
 
 let val = 0;
 let buffer = new Buffer(ctx, width, height);
-let perspective = Mat4.perspective(width, height, .1, 1000, Math.PI / 2);
+let perspective = Mat4.perspective(width, height, .1, 3.1, Math.PI / 2);
 
 setInterval(mainLoop, 1000/60.0)
 
@@ -23,7 +23,8 @@ let fragShader = (varyings, uniforms) => {
 
 let vertexShader = (vertex, uniforms) => {
 	let pt4 = Point4.fromPoint3(vertex.point, 1);
-	pt4 = uniforms.projMatrix.multVec4(uniforms.modelMatrix.multVec4(pt4));
+	pt4 = uniforms.modelMatrix.multVec4(pt4);
+	pt4 = uniforms.projMatrix.multVec4(pt4);
 	return new Vertex(pt4, {}, vertex.attributes.slice(0));
 }
 
@@ -41,8 +42,8 @@ function mainLoop() {
 	let tri1 = new Triangle(v1, v2, v3);
 	let tri2 = new Triangle(v4, v5, v6);
 	
-	let modelMatrix1 = Mat4.translate(0, 0, 1).mult(Mat4.rotateX(val * 3).mult(Mat4.scale(.3, .3, .3)));
-	let modelMatrix2 = Mat4.translate(0, 0, 3).mult(Mat4.rotateX(val * 2).mult(Mat4.scale(.3, .3, .3)));
+	let modelMatrix1 = Mat4.translate(0, 0, -.4 + Math.cos(val * 3) * .09).mult(Mat4.rotateX(-1).mult(Mat4.scale(.3, .3, .3)));
+	let modelMatrix2 = Mat4.translate(0, 0, -3).mult(Mat4.rotateX(val * 2).mult(Mat4.scale(.3, .3, .3)));
 	
 	drawTriangles(buffer, [tri1, tri2], vertexShader, fragShader, {modelMatrix: modelMatrix1, projMatrix: perspective});
 	drawTriangles(buffer, [tri1, tri2], vertexShader, fragShader, {modelMatrix: modelMatrix2, projMatrix: perspective});

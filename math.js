@@ -140,10 +140,10 @@ export class Mat4 {
 		m.vals[0] = 1;
 		m.vals[15] = 1;
 		
-		m.vals[5] = Math.sin(r);
-		m.vals[6] = Math.cos(r);
-		m.vals[9] = Math.cos(r);
-		m.vals[10] = -Math.sin(r);
+		m.vals[5] = Math.cos(r);
+		m.vals[6] = Math.sin(r);
+		m.vals[9] = Math.sin(r);
+		m.vals[10] = -Math.cos(r);
 		return m;
 	}
 	
