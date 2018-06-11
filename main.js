@@ -1,24 +1,11 @@
 import { Point3, Point4, Mat4 } from "./math.js";
+import { makeSphere, makeCube, makePlane, makeCylinder } from "./shapes.js";
 import { drawTriangles, Buffer, Triangle, Vertex, Fragment, getVarying } from "./shader.js";
-
-let canvas = document.getElementById('canvas');
-let ctx = canvas.getContext('2d');
-let width = canvas.width;
-let height = canvas.height;
-
-let val = 0;
-let buffer = new Buffer(ctx, width, height);
-let perspective = Mat4.perspective(width, height, .1, 3.1, Math.PI / 2);
-
-setInterval(mainLoop, 1000/60.0)
 
 let fragShader = (varyings, uniforms) => {
 	let u = getVarying(varyings, 4);
 	let v = getVarying(varyings, 5);
-	if ((Math.floor(u * 10) + Math.floor(v * 10)) % 2 == 0) {
-		return new Fragment(0, 0, 0, 0);
-	}
-	return new Fragment(getVarying(varyings, 0), getVarying(varyings, 1), getVarying(varyings, 2), getVarying(varyings, 3));
+	return new Fragment(getVarying(varyings, 0) * u , getVarying(varyings, 1) * v, getVarying(varyings, 2) * u, getVarying(varyings, 3));
 }
 
 let vertexShader = (vertex, uniforms) => {
@@ -28,25 +15,35 @@ let vertexShader = (vertex, uniforms) => {
 	return new Vertex(pt4, {}, vertex.attributes.slice(0));
 }
 
+let canvas = document.getElementById('canvas');
+let ctx = canvas.getContext('2d');
+let width = canvas.width;
+let height = canvas.height;
+
+let val = 0;
+let buffer = new Buffer(ctx, width, height);
+
+let perspective = Mat4.perspective(width, height, .1, 100, Math.PI / 2);
+
+let sphere = makeSphere(20, 20, 255, 255, 0);
+let plane = makePlane(255, 0, 255);
+let cube = makeCube(0, 255, 255);
+let cylinder = makeCylinder(255, 255, 255);
+
+setInterval(mainLoop, 1000/60.0)
+
 function mainLoop() {
 	val += .01;
 	
-	let v1 = new Vertex(new Point3(-1, -1, 0), [255, 0, 0, 255, 0, 0]);
-	let v2 = new Vertex(new Point3(1, -1, 0), [0, 255, 0, 255, 1, 0]);
-	let v3 = new Vertex(new Point3(1, 1, 0), [0, 0, 255, 255, 1, 1]);
+	let modelMatrix1 = Mat4.translate(-.6, 0, -3 + Math.sin(val * 2.2) * .3).mult(Mat4.rotateZ(val * 1.5).mult(Mat4.rotateY(val * 2.5)).mult(Mat4.rotateX(val * 2)).mult(Mat4.scale(.3, .3, .3)));
+	let modelMatrix2 = Mat4.translate(-.2, 0, -3 + Math.sin(val * 2.4) * .3).mult(Mat4.rotateZ(val * 2.6).mult(Mat4.rotateY(val * 1.4)).mult(Mat4.rotateX(val * 3)).mult(Mat4.scale(.3, .3, .3)));
+	let modelMatrix3 = Mat4.translate(.2, 0, -3 + Math.sin(val * 2.6) * .3).mult(Mat4.rotateZ(val * 1.3).mult(Mat4.rotateY(val * 1.8)).mult(Mat4.rotateX(val * 2.1)).mult(Mat4.scale(.3, .3, .3)));
+	let modelMatrix4 = Mat4.translate(.6, 0, -3 + Math.sin(val * 2.8) * .3).mult(Mat4.rotateZ(val * 2.0).mult(Mat4.rotateY(val * 2.0)).mult(Mat4.rotateX(val * 1.5)).mult(Mat4.scale(.3, .3, .3)));
 	
-	let v4 = new Vertex(new Point3(-1, -1, 0), [255, 0, 0, 255, 0, 0]);
-	let v5 = new Vertex(new Point3(1, 1, 0), [0, 0, 255, 255, 1, 1]);
-	let v6 = new Vertex(new Point3(-1, 1, 0), [255, 255, 255, 255, 0, 1]);
-
-	let tri1 = new Triangle(v1, v2, v3);
-	let tri2 = new Triangle(v4, v5, v6);
-	
-	let modelMatrix1 = Mat4.translate(0, 0, -.4 + Math.cos(val * 3) * .09).mult(Mat4.rotateX(-1).mult(Mat4.scale(.3, .3, .3)));
-	let modelMatrix2 = Mat4.translate(0, 0, -3).mult(Mat4.rotateX(val * 2).mult(Mat4.scale(.3, .3, .3)));
-	
-	drawTriangles(buffer, [tri1, tri2], vertexShader, fragShader, {modelMatrix: modelMatrix1, projMatrix: perspective});
-	drawTriangles(buffer, [tri1, tri2], vertexShader, fragShader, {modelMatrix: modelMatrix2, projMatrix: perspective});
+	drawTriangles(buffer, sphere, vertexShader, fragShader, {modelMatrix: modelMatrix1, projMatrix: perspective});
+	drawTriangles(buffer, plane, vertexShader, fragShader, {modelMatrix: modelMatrix2, projMatrix: perspective});
+	drawTriangles(buffer, cube, vertexShader, fragShader, {modelMatrix: modelMatrix3, projMatrix: perspective});
+	drawTriangles(buffer, cylinder, vertexShader, fragShader, {modelMatrix: modelMatrix4, projMatrix: perspective});
 
 	ctx.putImageData(buffer.imageData, 0, 0);
 	buffer.clear();

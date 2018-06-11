@@ -17,8 +17,28 @@ export class Point3 {
 		return this.x * p.x + this.y * p.y;
 	}
 	
+	dot3(p) {
+		return this.x * p.x + this.y * p.y + this.z * p.z;
+	}
+	
 	cross2(p) {
 		return this.x * p.y - this.y * p.x;
+	}
+	
+	magnitude() {
+		return Math.sqrt(this.magSqr());
+	}
+	
+	magSqr() {
+		return this.x * this.x + this.y * this.y + this.z * this.z;
+	}
+	
+	normalize() {
+		let mag = this.magnitude();
+		this.x /= mag;
+		this.y /= mag;
+		this.z /= mag;
+		return this;
 	}
 	
 	clone() {
@@ -52,6 +72,10 @@ export class Point4 {
 	
 	clone() {
 		return new Point4(this.x, this.y, this.z, this.w);
+	}
+	
+	dot3(p) {
+		return this.x * p.x + this.y * p.y + this.z * p.z;
 	}
 	
 	normalizeW() {
@@ -144,6 +168,30 @@ export class Mat4 {
 		m.vals[6] = Math.sin(r);
 		m.vals[9] = Math.sin(r);
 		m.vals[10] = -Math.cos(r);
+		return m;
+	}
+	
+	static rotateY(r) {
+		let m = new Mat4();
+		m.vals[5] = 1;
+		m.vals[15] = 1;
+		
+		m.vals[0] = Math.cos(r);
+		m.vals[2] = Math.sin(r);
+		m.vals[8] = Math.sin(r);
+		m.vals[10] = -Math.cos(r);
+		return m;
+	}
+	
+	static rotateZ(r) {
+		let m = new Mat4();
+		m.vals[10] = 1;
+		m.vals[15] = 1;
+		
+		m.vals[0] = Math.cos(r);
+		m.vals[1] = Math.sin(r);
+		m.vals[4] = Math.sin(r);
+		m.vals[5] = -Math.cos(r);
 		return m;
 	}
 	
