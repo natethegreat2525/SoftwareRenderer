@@ -78,6 +78,10 @@ export class Point4 {
 		return this.x * p.x + this.y * p.y + this.z * p.z;
 	}
 	
+	multS(s) {
+		return new Point4(this.x * s, this.y * s, this.z * s, this.w * s);
+	}
+	
 	normalizeW() {
 		this.x = this.x / this.w;
 		this.y = this.y / this.w;

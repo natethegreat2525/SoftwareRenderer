@@ -17,8 +17,8 @@ export function makeSphere(widthSegs, heightSegs, r, g, b) {
 			let v3 = new Vertex(getSpherePoint(waHigh, haHigh), [r,g,b,255,(i+1)*1.0/widthSegs,(j+1)*1.0/heightSegs]);
 			let v4 = new Vertex(getSpherePoint(waLow, haHigh), [r,g,b,255,i*1.0/widthSegs,(j+1)*1.0/heightSegs]);
 			
-			tris.push(new Triangle(v1, v3, v2));
-			tris.push(new Triangle(v1, v4, v3));
+			tris.push(new Triangle(v1, v2, v3));
+			tris.push(new Triangle(v1, v3, v4));
 		}
 	}
 	return tris;
@@ -58,7 +58,7 @@ function makeCubeFace(r, g, b, xU, yU, zU, xV, yV, zV, xC, yC, zC) {
 		), [r,g,b,255,u,v]);
 		vs.push(vert);
 	}
-	return [new Triangle(vs[0], vs[1], vs[2]), new Triangle(vs[0], vs[2], vs[3])];
+	return [new Triangle(vs[0], vs[2], vs[1]), new Triangle(vs[0], vs[3], vs[2])];
 }
 
 export function makeCylinder(segs, r, g, b) {
@@ -77,11 +77,11 @@ export function makeCylinder(segs, r, g, b) {
 		let v3 = new Vertex(getCylinderPoint(waHigh, haHigh), [r,g,b,255,(i+1)*1.0/segs,1]);
 		let v4 = new Vertex(getCylinderPoint(waLow, haHigh), [r,g,b,255,i*1.0/segs,1]);
 			
-		tris.push(new Triangle(v1, v2, v3));
-		tris.push(new Triangle(v1, v3, v4));
+		tris.push(new Triangle(v1, v3, v2));
+		tris.push(new Triangle(v1, v4, v3));
 		
-		tris.push(new Triangle(cBot, v2, v1));
-		tris.push(new Triangle(cTop, v4, v3));
+		tris.push(new Triangle(cBot, v1, v2));
+		tris.push(new Triangle(cTop, v3, v4));
 	}
 	return tris;
 }

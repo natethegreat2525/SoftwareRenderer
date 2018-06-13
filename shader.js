@@ -5,6 +5,10 @@ export class Vertex {
 		this.varyingArray = varyingArray || [];
 		this.attributes = attributes;
 	}
+	
+	clone() {
+		return new Vertex(this.point.clone(), this.attributes, this.varyingArray.slice(0));
+	}
 }
 
 export class Triangle {
@@ -37,6 +41,113 @@ export class Buffer {
 	}
 }
 
+let getTXL = (pA, pB) => {
+	return (pB.x + pB.w) / (pB.x - pA.x + pB.w - pA.w);
+}
+
+let getTYL = (pA, pB) => {
+	return (pB.y + pB.w) / (pB.y - pA.y + pB.w - pA.w);
+}
+
+let getTZL = (pA, pB) => {
+	return (pB.z + pB.w) / (pB.z - pA.z + pB.w - pA.w);
+}
+
+let getTXH = (pA, pB) => {
+	return (pB.w - pB.x) / (-pB.x + pA.x + pB.w - pA.w);
+}
+
+let getTYH = (pA, pB) => {
+	return (pB.w - pB.y) / (-pB.y + pA.y + pB.w - pA.w);
+}
+
+let getTZH = (pA, pB) => {
+	return (pB.w - pB.z) / (-pB.z + pA.z + pB.w - pA.w);
+}
+
+let getX = (p) => p.point.x;
+let getY = (p) => p.point.y;
+let getZ = (p) => p.point.z;
+let getNX = (p) => -p.point.x;
+let getNY = (p) => -p.point.y;
+let getNZ = (p) => -p.point.z;
+function clipTriangles(tris, getZ, getT, checkW) {
+	let ret = [];
+	for (let i = 0; i < tris.length; i++) {
+		let tri = tris[i];
+		//clip for z/w <= -1
+		let p1b = (getZ(tri.p1) / tri.p1.point.w <= -1);
+		let p2b = (getZ(tri.p2) / tri.p2.point.w <= -1);
+		let p3b = (getZ(tri.p3) / tri.p3.point.w <= -1);
+		
+		if (checkW) {
+			p1b = p1b || tri.p1.point.w <= 0;
+			p2b = p2b || tri.p2.point.w <= 0;
+			p3b = p3b || tri.p3.point.w <= 0;
+		}
+		if (!p1b && !p2b && !p3b) {
+			ret.push(tri);
+			continue;
+		}
+		if (p1b && p2b && p3b) {
+			continue;
+		}
+		
+		//if we got here, part of the triangle is on the wrong side of the line
+		let twoBehind = false;
+		if (p2b && !p1b) {
+			//rotate left
+			let tmp = tri.p1;
+			tri.p1 = tri.p2;
+			tri.p2 = tri.p3;
+			tri.p3 = tmp;
+			twoBehind = p3b;
+		} else if (p3b && !p2b) {
+			//rotate right
+			let tmp = tri.p3;
+			tri.p3 = tri.p2;
+			tri.p2 = tri.p1;
+			tri.p1 = tmp;
+			twoBehind = p1b;
+		} else {
+			twoBehind = p2b;
+		}
+		
+		if (twoBehind) {
+			//first two verts are getting clipped
+			//results in one triangle
+			let tA = getT(tri.p1.point, tri.p3.point);
+			let tB = getT(tri.p2.point, tri.p3.point);
+			tri.p1.point = tri.p1.point.multS(tA).add(tri.p3.point.multS(1-tA));
+			tri.p2.point = tri.p2.point.multS(tB).add(tri.p3.point.multS(1-tB));
+			for (let i = 0; i < tri.p1.varyingArray.length; i++) {
+				tri.p1.varyingArray[i] = tri.p1.varyingArray[i] * tA + tri.p3.varyingArray[i] * (1 - tA);
+				tri.p2.varyingArray[i] = tri.p2.varyingArray[i] * tB + tri.p3.varyingArray[i] * (1 - tB);
+			}
+			ret.push(tri);
+		} else {
+			//only the first vert is getting clipped
+			//results in two triangles
+			let tA = getT(tri.p1.point, tri.p2.point);
+			let tB = getT(tri.p1.point, tri.p3.point);
+			let p12 = tri.p1.point.multS(tA).add(tri.p2.point.multS(1-tA));
+			let p13 = tri.p1.point.multS(tB).add(tri.p3.point.multS(1-tB));
+			let v12var = new Array(tri.p1.varyingArray.length);
+			let v13var = new Array(tri.p1.varyingArray.length);
+			for (let i = 0; i < tri.p1.varyingArray.length; i++) {
+				v12var[i] = tri.p1.varyingArray[i] * tA + tri.p2.varyingArray[i] * (1 - tA);
+				v13var[i] = tri.p1.varyingArray[i] * tB + tri.p3.varyingArray[i] * (1 - tB);
+			}
+			let v12 = new Vertex(p12, null, v12var);
+			let v13 = new Vertex(p13, null, v13var);
+			let tri1 = new Triangle(v12.clone(), tri.p2.clone(), tri.p3.clone());
+			let tri2 = new Triangle(v12, tri.p3.clone(), v13);
+			ret.push(tri1, tri2);
+		}
+	}
+	return ret;
+}
+
 export function drawTriangles(buffer, triangles, vertexShader, fragmentShader, uniforms) {
 	for (let i = 0; i < triangles.length; i++) {
 		let t = triangles[i];
@@ -44,13 +155,24 @@ export function drawTriangles(buffer, triangles, vertexShader, fragmentShader, u
 		tNext.p1 = vertexShader(t.p1, uniforms);
 		tNext.p2 = vertexShader(t.p2, uniforms);
 		tNext.p3 = vertexShader(t.p3, uniforms);
-		if (tNext.p1.z < -1 && tNext.p2.z < -1 && tNext.p3.z < -1) {
-			continue;
+
+		let tris = clipTriangles([tNext], getZ, getTZL, true);
+		tris = clipTriangles(tris, getNZ, getTZH);
+
+		tris = clipTriangles(tris, getX, getTXL);
+		tris = clipTriangles(tris, getNX, getTXH);
+		
+		tris = clipTriangles(tris, getNY, getTYH);
+		tris = clipTriangles(tris, getY, getTYL);
+
+		for (let j = 0; j < tris.length; j++) {
+			tNext = tris[j];
+			tNext.p1.point.normalizeW();
+			tNext.p2.point.normalizeW();
+			tNext.p3.point.normalizeW();
+
+			drawTriangle(buffer, tNext, fragmentShader, uniforms);
 		}
-		if (tNext.p1.z > 1 && tNext.p2.z > 1 && tNext.p3.z > 1) {
-			continue;
-		}
-		drawTriangle(buffer, tNext, fragmentShader, uniforms);
 	}
 }
 
@@ -74,16 +196,16 @@ function perspectiveCorrectTriangleVarying(t) {
 	let v1 = t.p1.varyingArray;
 	let v2 = t.p2.varyingArray;
 	let v3 = t.p3.varyingArray;
-		
-	v1.push(t.p1.point.z);
-	v2.push(t.p2.point.z);
-	v3.push(t.p3.point.z);
 	
 	for (let i = 0; i < v1.length; i++) {
 		v1[i] /= t.p1.point.w;
 		v2[i] /= t.p2.point.w;
 		v3[i] /= t.p3.point.w;
 	}
+	
+	v1.push(t.p1.point.z);
+	v2.push(t.p2.point.z);
+	v3.push(t.p3.point.z);
 	
 	v1.push(1/t.p1.point.w);
 	v2.push(1/t.p2.point.w);
@@ -122,15 +244,10 @@ function calculateVaryingSlope(t) {
 	return slopeArray;
 }
 
-function drawTriangle(buffer, triangle, fragmentShader, uniforms) {
+function drawTriangle(buffer, triangle, fragmentShader, uniforms) {	
 	let p1 = triangle.p1.point;
 	let p2 = triangle.p2.point;
 	let p3 = triangle.p3.point;
-	
-	//normalize w value of p1, p2, p3
-	p1.normalizeW();
-	p2.normalizeW();
-	p3.normalizeW();
 	
 	//sort from top to bottom maintaining ccw or cw order
 	if (p2.y < p1.y && p2.y <= p3.y) {
@@ -182,7 +299,7 @@ function drawTriangle(buffer, triangle, fragmentShader, uniforms) {
 	if (yScanEnd !== yScanStart) {
 		let vec1 = p2.sub(p1);
 		let vec2 = p3.sub(p1);
-		doHalfTri(buffer, yScanStart, yScanEnd, p1.clone(), vec1.x/vec1.y, p1.clone(), vec2.x/vec2.y, triangle.p1, varyingSlopes, fragmentShader, uniforms);
+		doHalfTri(buffer, yScanStart, yScanEnd, p1.clone(), vec1.x/vec1.y, p1.clone(), vec2.x/vec2.y, triangle.p1, varyingSlopes, fragmentShader, uniforms, triangle);
 	}
 	
 	//scan bottom half
@@ -202,19 +319,21 @@ function drawTriangle(buffer, triangle, fragmentShader, uniforms) {
 		start2 = p1;
 	}
 	if (yScanStart !== yScanEnd) {
-		doHalfTri(buffer, yScanStart, yScanEnd, start1.clone(), vec1.x/vec1.y, start2.clone(), vec2.x/vec2.y, triangle.p1, varyingSlopes, fragmentShader, uniforms);
+		doHalfTri(buffer, yScanStart, yScanEnd, start1.clone(), vec1.x/vec1.y, start2.clone(), vec2.x/vec2.y, triangle.p1, varyingSlopes, fragmentShader, uniforms, triangle);
 	}
 }
 
-function doHalfTri(buffer, scanStart, scanEnd, p1, slope1, p2, slope2, baseVertex, varyingSlopes, fragmentShader, uniforms) {
+function doHalfTri(buffer, scanStart, scanEnd, p1, slope1, p2, slope2, baseVertex, varyingSlopes, fragmentShader, uniforms, tri) {
+
+	if (scanStart < 0) {
+		scanStart = 0;
+	}
 	
 	if (scanStart > scanEnd) {
 			return;
 	}
-	
-	if (scanStart < 0) {
-		scanStart = 0;
-	}
+	let curPixels = 0;
+	let curLines = 0;
 	
 	//start right x pos
 	let sx1 = p1.x + (scanStart - p1.y) * slope1;
@@ -249,7 +368,7 @@ function doHalfTri(buffer, scanStart, scanEnd, p1, slope1, p2, slope2, baseVerte
 			if (j >= 0 && i >= 0 && j < buffer.imageData.width && i < buffer.imageData.height) {
 				let frag = fragmentShader(varyingBase, uniforms);
 				//discard alpha of 0
-				if (frag.a !== 0) {
+				if (frag && frag.a !== 0) {
 					let idx = j + i * buffer.imageData.width;
 					let depth = getDepth(varyingBase);
 					//depth buffer
@@ -292,5 +411,5 @@ export function getVarying(base, idx) {
 }
 
 export function getDepth(base) {
-	return base[base.length - 2] / base[base.length - 1];
+	return base[base.length - 2];
 }
