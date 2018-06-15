@@ -44,6 +44,10 @@ export class Point3 {
 	clone() {
 		return new Point3(this.x, this.y, this.z);
 	}
+	
+	static fromP4(p4) {
+		return new Point3(p4.x, p4.y, p4.z);
+	}
 }
 
 export class Point4 {

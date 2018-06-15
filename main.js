@@ -2,30 +2,6 @@ import { Point3, Point4, Mat4 } from "./math.js";
 import { makeSphere, makeCube, makePlane, makeCylinder } from "./shapes.js";
 import { drawTriangles, Buffer, Triangle, Vertex, Fragment, getVarying } from "./shader.js";
 
-let fragShader = (varyings, uniforms) => {
-	let u = getVarying(varyings, 4);
-	let v = getVarying(varyings, 5);
-	return new Fragment(getVarying(varyings, 0) * u , getVarying(varyings, 1) * v, getVarying(varyings, 2) * u, getVarying(varyings, 3));
-}
-
-let fragShaderGrid = (varyings, uniforms) => {
-	let u = getVarying(varyings, 4);
-	let v = getVarying(varyings, 5);
-	if ((Math.floor(u * 10) + Math.floor(v * 10)) % 2 == 0) {
-		return null;
-	}
-	return new Fragment(getVarying(varyings, 0) * u , getVarying(varyings, 1) * v, getVarying(varyings, 2) * u, getVarying(varyings, 3));
-}
-
-let vertexShader = (vertex, uniforms) => {
-	let pt4 = Point4.fromPoint3(vertex.point, 1);
-	pt4 = uniforms.modelMatrix.multVec4(pt4);
-	pt4 = uniforms.projMatrix.multVec4(pt4);
-	
-	let vars = vertex.attributes.slice(0);
-	return new Vertex(pt4, {}, vars);
-}
-
 let sampleDepth = (buff, x, y) => {
 	let xLow = Math.floor(x);
 	let yLow = Math.floor(y);
@@ -46,15 +22,39 @@ let sampleDepth = (buff, x, y) => {
 }
 
 let shadowFrag = (varyings, uniforms) => {
+	let r = getVarying(varyings, 0);
+	let g = getVarying(varyings, 1);
+	let b = getVarying(varyings, 2);
+	let a = getVarying(varyings, 3);
+	
 	let u = getVarying(varyings, 4);
 	let v = getVarying(varyings, 5);
+	
+	if (uniforms.grid) {
+		if ((Math.floor(u * 10) + Math.floor(v * 10)) % 2 == 0) {
+			r = 255;
+			g = 0;
+			b = 0;
+			a = 255;
+		} else {
+			r = 0;
+			g = 0;
+			b = 255;
+			a = 255;
+		}
+	}
 	let shadowBuff = uniforms.shadowBuff;
 	let shadowProj = uniforms.shadowProj;
-	let shX = getVarying(varyings, 9);
-	let shY = getVarying(varyings, 10);
-	let shZ = getVarying(varyings, 11);
-	let shW = getVarying(varyings, 12);
+	let shX = getVarying(varyings, 10);
+	let shY = getVarying(varyings, 11);
+	let shZ = getVarying(varyings, 12);
+	let shW = getVarying(varyings, 13);
+	let rX = getVarying(varyings, 14);
+	let rY = getVarying(varyings, 15);
+	let rZ = getVarying(varyings, 16);
 	let posSh = new Point4(shX, shY, shZ, shW);
+	let posWorld = new Point3(rX, rY, rZ);
+	
 	
 	//position in shadow space
 	posSh.normalizeW();
@@ -63,14 +63,21 @@ let shadowFrag = (varyings, uniforms) => {
 	
 	let depth = sampleDepth(shadowBuff, posSh.x, posSh.y);
 	let light = 1;
+	let specular = 0;
 	if (posSh.z > depth + .001) {
-		light = .1;
+		light = .3;
 	} else {
 		let normDot = getVarying(varyings, 6);
-		light = Math.max(.1, -normDot);
+		light = Math.max(.3, -normDot);
+		
+		let normalWorldSpace = new Point3(getVarying(varyings, 7), getVarying(varyings, 8), getVarying(varyings, 9)).normalize();
+		let halfCamLight = uniforms.camPos.sub(posWorld).normalize().add( uniforms.lightPos.sub(posWorld).normalize() ).normalize();
+		let specAngle = Math.max(halfCamLight.dot3(normalWorldSpace), 0);
+		specular = Math.pow(specAngle, 16);
 	}
 
-	return new Fragment(getVarying(varyings, 0) * light, getVarying(varyings, 1) * light, getVarying(varyings, 2) * light, getVarying(varyings, 3));
+	return new Fragment(r * light + specular * 255, g * light + specular * 255, b * light + specular * 255, a);
+	//return new Fragment(specular * 255, 0, 0, getVarying(varyings, 3));
 }
 
 let shadowVert = (vertex, uniforms) => {
@@ -81,7 +88,8 @@ let shadowVert = (vertex, uniforms) => {
 	
 	//calculate norm in light space
 	let norm = new Point4(vertex.attributes[6], vertex.attributes[7], vertex.attributes[8], 0);
-	let shadowSpaceNorm = uniforms.shadowView.multVec4(uniforms.modelMatrix.multVec4(norm));
+	let worldSpaceNorm = uniforms.modelMatrix.multVec4(norm);
+	let shadowSpaceNorm = uniforms.shadowView.multVec4(worldSpaceNorm);
 	
 	//calculate vertex pos in light space
 	let posShadSp = uniforms.shadowView.multVec4(ptWS);
@@ -95,9 +103,14 @@ let shadowVert = (vertex, uniforms) => {
 	
 	vars[6] = normDot;
 	
-	//vars 7 and 8 are used by norm y and norm z
+	vars[7] = worldSpaceNorm.x;
+	vars[8] = worldSpaceNorm.y;
+	vars.push(worldSpaceNorm.z);
 
 	vars.push(ptSS.x, ptSS.y, ptSS.z, ptSS.w);
+	vars.push(ptWS.x, ptWS.y, ptWS.z);
+	
+	
 
 	return new Vertex(ptRet, {}, vars);
 }
@@ -130,7 +143,7 @@ let plane = makePlane(255, 255, 255);
 let cube = makeCube(0, 255, 255);
 let cylinder = makeCylinder(10, 255, 255, 255);
 
-let shapes = [sphere, plane, cube, cylinder];
+let shapes = [sphere, cube, cylinder];
 let entities = [];
 for (let i = 0; i < 20; i++) {
 	let rSpd = .03;
@@ -162,14 +175,20 @@ setInterval(mainLoop, 1000/60.0)
 function mainLoop() {
 	val += .01;
 	cameraPos.z = -5;
-	let projMatrix = perspective.mult(Mat4.translate(cameraPos.x, cameraPos.y, cameraPos.z).mult(Mat4.rotateX((Math.sin(val) + 1) * .3).mult(Mat4.rotateY(Math.sin(val / 8) * 2*Math.PI))));
+	let camViewMatrix = Mat4.translate(cameraPos.x, cameraPos.y, cameraPos.z).mult(Mat4.rotateX((Math.sin(val) + 1) * .3).mult(Mat4.rotateY(Math.sin(val / 8) * 2*Math.PI)));
+	let projMatrix = perspective.mult(camViewMatrix);
+	
+	let camRealPos = Point3.fromP4(camViewMatrix.inv().multVec4(new Point4(0, 0, 0, 1)));
+	
 	let lightViewMatrix = Mat4.rotateX(Math.PI/2).mult(Mat4.translate(lightPos.x, lightPos.y, lightPos.z));
 	let lightProjMatrix = perspective.mult(lightViewMatrix);
 	
+	let lightRealPos = Point3.fromP4(lightViewMatrix.inv().multVec4(new Point4(0, 0, 0, 1)));
+
 	updateEntities();
-	
+		
 	drawWorld(lightProjMatrix, lightBuffer, lightVert, lightFrag);
-	drawWorld(projMatrix, buffer, shadowVert, shadowFrag, lightBuffer, lightProjMatrix, lightViewMatrix);
+	drawWorld(projMatrix, buffer, shadowVert, shadowFrag, lightBuffer, lightProjMatrix, lightViewMatrix, camRealPos, lightRealPos);
 
 	ctx.putImageData(buffer.imageData, 0, 0);
 	buffer.clear();
@@ -188,10 +207,10 @@ function updateEntities() {
 	}
 }
 
-function drawWorld(projMatrix, buf, vert, frag, shadowBuff, shadowProj, shadowView) {
+function drawWorld(projMatrix, buf, vert, frag, shadowBuff, shadowProj, shadowView, camPos, lightPos) {
 	for (let i = 0; i < entities.length; i++) {
 		let ent = entities[i];
-		drawTriangles(buf, ent.tris, vert, frag, {modelMatrix: ent.modelMatrix, projMatrix: projMatrix, shadowBuff: shadowBuff, shadowView: shadowView, shadowProj: shadowProj});
+		drawTriangles(buf, ent.tris, vert, frag, {modelMatrix: ent.modelMatrix, projMatrix: projMatrix, shadowBuff: shadowBuff, shadowView: shadowView, shadowProj: shadowProj, camPos: camPos, lightPos: lightPos});
 	}
-	drawTriangles(buf, plane, vert, frag, {modelMatrix: Mat4.translate(0, .5, 0).mult(Mat4.scale(5, 5, 5)), projMatrix: projMatrix, shadowBuff: shadowBuff, shadowView: shadowView, shadowProj: shadowProj});
+	drawTriangles(buf, plane, vert, frag, {modelMatrix: Mat4.translate(0, .5, 0).mult(Mat4.scale(5, 5, 5)), projMatrix: projMatrix, shadowBuff: shadowBuff, shadowView: shadowView, shadowProj: shadowProj, camPos: camPos, lightPos: lightPos, grid: true});
 }
